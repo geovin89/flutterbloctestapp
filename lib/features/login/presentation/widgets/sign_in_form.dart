@@ -1,37 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:formz/formz.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutterbloctestapp/core/constants/constants.dart';
 import 'package:flutterbloctestapp/features/login/presentation/bloc/bloc.dart';
-import 'package:flutterbloctestapp/features/login/presentation/widgets/sign_in_button.dart';
 
+import '../bloc/sign_in/sign_in_bloc.dart';
+import '../bloc/sign_in/sign_in_event.dart';
 import 'create_account_button.dart';
 
-class SignInForm extends StatefulWidget {
+class SignInForm extends StatelessWidget {
   const SignInForm({Key key}) : super(key: key);
-
-  @override
-  _SignInFormState createState() => _SignInFormState();
-}
-
-class _SignInFormState extends State<SignInForm> {
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-
-  SignInBloc _signInBloc;
-
-  @override
-  void initState() {
-    super.initState();
-    _signInBloc = BlocProvider.of<SignInBloc>(context);
-    _emailController.addListener(_onSignInEmailChanged);
-    _passwordController.addListener(_onSignInPasswordChanged);
-  }
 
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<SignInBloc, SignInState>(
       listener: (context, state) {
-        if (state.isFailure) {
+        if (state.status.isSubmissionFailure) {
           Scaffold.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(
@@ -45,7 +29,7 @@ class _SignInFormState extends State<SignInForm> {
               ),
             );
         }
-        if (state.isSubmitting) {
+        if (state.status.isSubmissionInProgress) {
           Scaffold.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(
@@ -61,8 +45,8 @@ class _SignInFormState extends State<SignInForm> {
               ),
             );
         }
-        if (state.isSuccess) {
-          BlocProvider.of<AuthenticationBloc>(context).add(LoggedIn());
+        if (state.status.isSubmissionSuccess) {
+          context.bloc<AuthenticationBloc>().add(LoggedIn());
         }
       },
       builder: (context, state) {
@@ -71,44 +55,14 @@ class _SignInFormState extends State<SignInForm> {
           child: Form(
             child: ListView(
               children: <Widget>[
-                TextFormField(
-                  key: Key(UIKeys.kEmailFieldKey),
-                  controller: _emailController,
-                  decoration: InputDecoration(
-                    icon: Icon(Icons.email),
-                    labelText: 'Email',
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  autovalidate: true,
-                  autocorrect: false,
-                  validator: (_) {
-                    return !state.isEmailValid ? 'Invalid Email' : null;
-                  },
-                ),
-                TextFormField(
-                  key: Key(UIKeys.kPasswordFieldKey),
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    icon: Icon(Icons.lock),
-                    labelText: 'Password',
-                  ),
-                  obscureText: true,
-                  autovalidate: true,
-                  autocorrect: false,
-                  validator: (_) {
-                    return !state.isPasswordValid ? 'Invalid Password' : null;
-                  },
-                ),
+                EmailInputField(),
+                PasswordInputField(),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
-                      SignInButton(
-                        onPressed: _isSignInButtonEnabled(state)
-                            ? _onFormSubmitted
-                            : null,
-                      ),
+                      SignInButton(),
                       CreateAccountButton(),
                     ],
                   ),
@@ -120,42 +74,84 @@ class _SignInFormState extends State<SignInForm> {
       },
     );
   }
+}
 
-  bool get _isPopulated =>
-      _emailController.text.isNotEmpty && _passwordController.text.isNotEmpty;
-
-  bool _isSignInButtonEnabled(SignInState state) {
-    print('_isSignInButtonEnabled state: $state, isPopulated: $_isPopulated');
-    return state.isFormValid && _isPopulated && !state.isSubmitting;
-  }
-
-  void _onSignInEmailChanged() {
-    print('_onSignInEmailChanged');
-    _signInBloc.add(
-      SignInEmailChanged(email: _emailController.text),
+class EmailInputField extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<SignInBloc, SignInState>(
+      condition: (previous, current) => previous.email != current.email,
+      builder: (context, state) {
+        return TextFormField(
+          key: Key(UIKeys.kEmailFieldKey),
+          onChanged: (value) =>
+              context.bloc<SignInBloc>().add(SignInEmailChanged(email: value)),
+          decoration: InputDecoration(
+            icon: Icon(Icons.email),
+            labelText: 'Email',
+          ),
+          keyboardType: TextInputType.emailAddress,
+          autovalidate: true,
+          autocorrect: false,
+          validator: (_) {
+            return state.email.invalid ? 'Invalid Email' : null;
+          },
+        );
+      },
     );
   }
+}
 
-  void _onSignInPasswordChanged() {
-    print('_onSignInPasswordChanged');
-    _signInBloc.add(
-      SignInPasswordChanged(password: _passwordController.text),
+class PasswordInputField extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<SignInBloc, SignInState>(
+      condition: (previous, current) => previous.password != current.password,
+      builder: (context, state) {
+        return TextFormField(
+          key: Key(UIKeys.kPasswordFieldKey),
+          onChanged: (value) => context
+              .bloc<SignInBloc>()
+              .add(SignInPasswordChanged(password: value)),
+          decoration: InputDecoration(
+            icon: Icon(Icons.lock),
+            labelText: 'Password',
+          ),
+          obscureText: true,
+          autovalidate: true,
+          autocorrect: false,
+          validator: (_) {
+            return state.password.invalid ? 'Invalid Password' : null;
+          },
+        );
+      },
     );
   }
+}
 
-  void _onFormSubmitted() {
-    _signInBloc.add(
-      SignInWithCredentialsPressed(
-        email: _emailController.text,
-        password: _passwordController.text,
-      ),
-    );
-  }
+class SignInButton extends StatelessWidget {
+  const SignInButton({Key key}) : super(key: key);
 
   @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
+  Widget build(BuildContext context) {
+    return BlocBuilder<SignInBloc, SignInState>(
+      condition: (previous, current) => previous.status != current.status,
+      builder: (context, state) {
+        return RaisedButton(
+          key: Key(UIKeys.kSignInButtonKey),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30.0),
+          ),
+          onPressed: state.status.isValidated
+              ? () {
+                  context
+                      .bloc<SignInBloc>()
+                      .add(SignInWithCredentialsPressed());
+                }
+              : null,
+          child: const Text('Sign in'),
+        );
+      },
+    );
   }
 }
