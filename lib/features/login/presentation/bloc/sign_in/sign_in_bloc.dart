@@ -1,13 +1,14 @@
 import 'dart:async';
 
 import 'package:bloc/bloc.dart';
+import 'package:formz/formz.dart';
 import 'package:injectable/injectable.dart';
 import 'package:rxdart/rxdart.dart';
 
-import '../../../../../core/utils/validators.dart';
 import '../../../domain/entities/user_credentials.dart';
 import '../../../domain/usecases/sign_in_with_credentials.dart';
 import '../bloc.dart';
+import 'models/models.dart';
 
 @prod
 @injectable
@@ -17,7 +18,7 @@ class SignInBloc extends Bloc<SignInEvent, SignInState> {
   SignInBloc(this._signInWithCredentials);
 
   @override
-  SignInState get initialState => SignInState.initial();
+  SignInState get initialState => const SignInState();
 
   @override
   Stream<Transition<SignInEvent, SignInState>> transformEvents(
@@ -46,39 +47,44 @@ class SignInBloc extends Bloc<SignInEvent, SignInState> {
     } else if (event is SignInPasswordChanged) {
       yield* _mapSignInPasswordChangedToState(event.password);
     } else if (event is SignInWithCredentialsPressed) {
-      yield* _mapAppSignInWithCredentialsPressedToState(
-          event.email, event.password);
+      yield* _mapAppSignInWithCredentialsPressedToState();
     } else if (event is SignInWithGooglePressed) {
-      yield SignInState.initial();
+      yield SignInState();
     }
   }
 
-  Stream<SignInState> _mapSignInEmailChangedToState(String email) async* {
+  Stream<SignInState> _mapSignInEmailChangedToState(String value) async* {
+    final email = Email.dirty(value);
     yield state.copyWith(
-      isEmailValid: Validators.isValidEmail(email),
+      email: email,
+      status: Formz.validate([email, state.password]),
     );
   }
 
-  Stream<SignInState> _mapSignInPasswordChangedToState(String password) async* {
+  Stream<SignInState> _mapSignInPasswordChangedToState(String value) async* {
+    final password = Password.dirty(value);
     yield state.copyWith(
-      isPasswordValid: Validators.isValidPassword(password),
+      password: password,
+      status: Formz.validate([state.email, password]),
     );
   }
 
-  Stream<SignInState> _mapAppSignInWithCredentialsPressedToState(
-      String email, String password) async* {
-    yield SignInState.loading();
+  Stream<SignInState> _mapAppSignInWithCredentialsPressedToState() async* {
+    yield state.copyWith(status: FormzStatus.submissionInProgress);
 
     final result = await _signInWithCredentials(
       UserCredentials(
-        email: email,
-        password: password,
+        email: state.email.value,
+        password: state.password.value,
       ),
     );
 
     yield result.fold(
-      (failure) => SignInState.failure('Failed to login user'),
-      (_) => SignInState.success(),
+      (failure) => state.copyWith(
+        status: FormzStatus.submissionFailure,
+        failureMessage: 'Failed to login user',
+      ),
+      (_) => state.copyWith(status: FormzStatus.submissionSuccess),
     );
   }
 

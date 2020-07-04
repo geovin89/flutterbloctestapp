@@ -35,19 +35,10 @@ class SignInPasswordChanged extends SignInEvent {
 class SignInWithGooglePressed extends SignInEvent {}
 
 class SignInWithCredentialsPressed extends SignInEvent {
-  final String email;
-  final String password;
-
-  const SignInWithCredentialsPressed({
-    @required this.email,
-    @required this.password,
-  });
-
-  @override
-  List<Object> get props => [email, password];
+  const SignInWithCredentialsPressed();
 
   @override
   String toString() {
-    return 'SignInWithCredentialsPressed { email: $email, password: $password }';
+    return 'SignInWithCredentialsPressed';
   }
 }
